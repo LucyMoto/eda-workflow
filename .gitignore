@@ -83,3 +83,7 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Other
+*.docx
+~WRL2430.tmp
