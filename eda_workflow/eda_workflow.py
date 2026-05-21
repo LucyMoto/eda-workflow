@@ -273,7 +273,7 @@ def make_eda_baseline_workflow(
         # Sort by cardinality (descending) and take top 3
         selected_cat_cols = sorted(
             good_cat_cols,
-            key=lambda col: cat_cardinality.get(col, 0),
+            key=lambda col: cat_cardinality[col],
             reverse=True
         )[:3]
         
@@ -289,7 +289,9 @@ def make_eda_baseline_workflow(
         
         # Variance analysis (exclude constant columns: variance = 0)
         num_variance = df[numeric_cols].var()
-        non_constant_cols = num_variance[num_variance > 0].dropna().index.tolist()
+        # Only select columns with meaningful variance (>0.01 to avoid near-constant columns)
+        VARIANCE_FLOOR = 0.01
+        non_constant_cols = num_variance[num_variance > VARIANCE_FLOOR].dropna().index.tolist()
         
         if not non_constant_cols:
             logger.warning("All numeric columns are constant (no variance)")
@@ -427,6 +429,8 @@ def make_eda_baseline_workflow(
 
                             # F-statistic (effect size)
                             groups = [group[num_col].values for _, group in df.groupby(cat_col)]
+                            # Filter out groups with 1 sample (needed for meaningful ANOVA)
+                            # Note: Small groups may inflate F-statistic; consider adding min_group_size=2+ check
                             valid_groups = [g for g in groups if len(g) > 1]
                             try:
                                 if len(valid_groups) >= 2:
