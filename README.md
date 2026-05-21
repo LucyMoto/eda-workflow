@@ -1,15 +1,34 @@
 # EDA Workflow
 
-An AI-powered exploratory data analysis workflow that performs consistent, first-pass analysis of datasets using LangChain and LangGraph. The workflow runs a fixed set of analysis tools, uses an LLM to extract observations after each step, and synthesizes findings into a summary with actionable recommendations.
+An AI-powered exploratory data analysis workflow that performs consistent, first-pass analysis of datasets using LangChain and LangGraph. The workflow runs a fixed set of analysis tools, uses an LLM to extract observations after each step, and synthesizes findings into a summary with actionable recommendations — then generates a multi-page PDF report with adaptive visualizations.
 
 ## How It Works
 
 The workflow follows a sequential process:
-1. **Analyze**: Runs a fixed set of predefined analysis tools on the dataset
-2. **Observe**: After each tool, the LLM extracts concise observations from the results
-3. **Synthesize**: Once all tools have run, the LLM summarizes findings and provides actionable recommendations
+1. **Detect Schema**: Auto-classifies every column into a semantic type (numeric, categorical, date, ID, text) — all downstream steps adapt to this schema
+2. **Analyze**: Runs a fixed set of predefined analysis tools on the dataset
+3. **Observe**: After each analysis tool, the LLM extracts concise observations from the results
+4. **Synthesize**: Once all tools have run, the LLM summarizes findings and provides actionable recommendations
+5. **Report**: Generates a multi-page PDF with distributions, trends, correlations, and the written synthesis
 
 This approach combines deterministic pandas-based analysis with LLM-powered interpretation.
+
+## Analysis Pipeline
+
+The workflow executes these nodes in order:
+
+| Node | What it does |
+|---|---|
+| `detect_schema` | Classifies columns: numeric, categorical, date, ID (>80% unique), or text (avg length >50). All downstream nodes use this schema to skip irrelevant columns. |
+| `profile_dataset` | Shape, dtypes, `describe()` statistics for numeric columns, and top-10 value counts for categorical columns. |
+| `validate_data_integrity` | Checks `total = quantity × price` relationships, flags negative values in quantity/count columns. Severity rated HIGH/MEDIUM. |
+| `extract_observations` ×5 | LLM step: extracts 1–2 concise observations from each preceding analysis result. |
+| `analyze_missingness` | Per-column null counts and percentages; flags columns with >20% missing. |
+| `detect_temporal_anomalies` | If date columns exist: groups by date, computes daily sums, and flags values more than 1 std dev above the mean as peaks. |
+| `compute_aggregates` | Group-by aggregations (sum/mean/count). Selects categorical columns with 3–50 unique values and numeric columns by highest variance. |
+| `analyze_relationships` | Three relationship types: (1) numeric–numeric Pearson correlation (threshold 0.7), (2) categorical–numeric ANOVA F-statistic, (3) categorical–categorical cross-tabulation. ID-like columns are excluded from cross-tabs. |
+| `synthesize_findings` | LLM step: produces a 2–3 sentence summary and 3–5 actionable recommendations from all observations. |
+| `generate_report` | Builds a multi-page PDF: overview + summary, numeric histograms, box plots, temporal trends (if date columns exist), categorical bar charts, pie charts, and a correlation heatmap. |
 
 ## Setup
 
@@ -90,14 +109,15 @@ load_dotenv()
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 workflow = EDAWorkflow(model=llm)
 
-# Run analysis on a dataset
-workflow.invoke_workflow("data/cafe_sales.csv")
+# Run analysis on a dataset (report_path is optional, defaults to "eda_report.pdf")
+workflow.invoke_workflow("data/cafe_sales.csv", report_path="my_report.pdf")
 
 # Retrieve results
 summary = workflow.get_summary()              # str
 recommendations = workflow.get_recommendations()  # list[str]
 observations = workflow.get_observations()    # dict[str, list[str]]
 results = workflow.get_results()              # dict
+report_path = workflow.get_report_path()      # str — path to the generated PDF
 ```
 
 ### Running the Example
@@ -106,7 +126,7 @@ results = workflow.get_results()              # dict
 poetry run python example_usage.py
 ```
 
-This runs a full analysis on the sample dataset and prints the results for each step.
+This runs a full analysis on the sample dataset, prints results for each step, and saves `eda_report.pdf` and a `graph.png` diagram of the workflow graph.
 
 ## Project Structure
 
@@ -116,7 +136,8 @@ eda-agent/
 │   └── cafe_sales.csv             # Sample dataset
 ├── eda_workflow/
 │   ├── __init__.py
-│   ├── eda_workflow.py             # Main workflow class and graph
+│   ├── eda_workflow.py             # Main workflow class, graph, and all node definitions
+│   ├── eda_utils.py                # Schema detection and column classification utilities
 │   └── prompts/                   # LLM prompt templates
 │       ├── extract_observations_system.txt
 │       ├── extract_observations_human.txt
@@ -130,3 +151,14 @@ eda-agent/
 ```
 
 **Important**: The `poetry.lock` file is committed to ensure all users get identical, tested dependency versions.
+
+## Dependencies
+
+| Package | Purpose |
+|---|---|
+| `langchain`, `langchain-openai` | LLM prompt templates and OpenAI integration |
+| `langgraph` | Workflow graph orchestration |
+| `pandas` | Data loading and all deterministic analysis |
+| `scipy` | ANOVA F-statistic for categorical–numeric relationships |
+| `matplotlib`, `seaborn` | PDF report generation and visualizations |
+| `python-dotenv` | `.env` file loading |
