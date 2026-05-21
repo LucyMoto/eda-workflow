@@ -86,4 +86,5 @@ Thumbs.db
 
 # Other
 *.docx
-~WRL2430.tmp
+*.tmp
+*.pdf

@@ -13,7 +13,9 @@ dependencies = [
     "langchain (>=0.3.0,<0.4.0)",
     "langchain-openai (>=0.2.0,<0.3.0)",
     "python-dotenv (>=1.1.1,<2.0.0)",
-    "scipy (>=1.10.0,<2.0.0)"
+    "scipy (>=1.10.0,<2.0.0)",
+    "matplotlib (>=3.7.0,<4.0.0)",
+    "seaborn (>=0.13.0,<1.0.0)"
 ]
 
 
