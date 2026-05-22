@@ -47,7 +47,9 @@ results = workflow.get_results()
 # Display results sequentially: tool result → observations → next tool
 analysis_steps = [
     ("profile_dataset", "Dataset Profile"),
+    ("validate_data_integrity", "Data Integrity"),
     ("analyze_missingness", "Missingness Analysis"),
+    ("detect_temporal_anomalies", "Temporal Anomalies"),
     ("compute_aggregates", "Aggregates Analysis"),
     ("analyze_relationships", "Relationships Analysis"),
 ]
@@ -79,10 +81,14 @@ for step_key, step_title in analysis_steps:
 print("=" * 60)
 print("FINAL SYNTHESIS")
 print("=" * 60)
-print(f"\nSummary:\n{summary if summary else '(Not implemented yet)'}")
+print(f"\nSummary:\n{summary if summary else '(No LLM provided)'}")
 print("\nRecommendations:")
 if recommendations:
     for rec in recommendations:
         print(f"  • {rec}")
 else:
-    print("  (Not implemented yet)")
+    print("  (No LLM provided)")
+
+report_path = workflow.get_report_path()
+if report_path:
+    print(f"\nReport saved to: {report_path}")
