@@ -73,7 +73,7 @@ Provide 2-3 sentences synthesizing the most critical findings, then 3-5 actionab
 - **Avoid assumptions**: Base observations on analysis results, not domain knowledge alone
 - **Focus on actionability**: Each observation should suggest a downstream decision or investigation
 - **No redundancy**: Don't repeat the same finding across categories
-- **Limit scope**: Extract 8-12 key observations (not comprehensive; focus on signal)
+- **Limit scope**: Extract 3-6 key observations per step (not comprehensive; focus on signal)
 
 # Examples of Strong vs Weak Observations
 
