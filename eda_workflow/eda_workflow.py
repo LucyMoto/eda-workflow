@@ -288,14 +288,23 @@ def make_eda_baseline_workflow(
         missing_pct = (
             (df.isnull().sum() / len(df) * 100).round(2).to_dict()
         )
-        
+
         high_missing = {col: pct for col, pct in missing_pct.items() if pct > 20}
-        
+
+        _SENTINELS = {"", "n/a", "na", "null", "none", "#n/a", "-", "unknown", "?", "nan"}
+        sentinel_counts = {}
+        for col in df.columns:
+            if pd.api.types.is_object_dtype(df[col]):
+                n = int(df[col].astype(str).str.strip().str.lower().isin(_SENTINELS).sum())
+                if n > 0:
+                    sentinel_counts[col] = n
+
         missingness = {
             "total_rows": len(df),
             "missing_count": missing_count,
             "missing_percentage": missing_pct,
             "high_missing_columns": high_missing,
+            "sentinel_value_counts": sentinel_counts,
             "complete_rows": int(df.dropna().shape[0]),
             "complete_rows_pct": (
                 round(df.dropna().shape[0] / len(df) * 100, 2)
@@ -516,73 +525,73 @@ def make_eda_baseline_workflow(
                 logger.info(f"Found {len(high_correlations)} high correlations (> 0.7)")
             except Exception as e:
                 logger.warning(f"Failed to compute numeric correlations: {e}")
-        
-            # ========== 2. CATEGORICAL-to-NUMERIC RELATIONSHIPS ==========
-            if categorical_cols and numeric_cols:
-                try:
-                    cat_numeric_rels = {}
-                    
-                    # Select MEANINGFUL categorical columns (3-50 cardinality sweet spot)
-                    cat_cardinality = {col: df[col].nunique() for col in categorical_cols}
-                    
-                    # Sweet spot: 3-50 unique values
-                    meaningful_cat_cols = [
-                        col for col, card in cat_cardinality.items() 
-                        if 3 <= card <= 50
-                    ]
-                    
-                    # Fallback if none in sweet spot
-                    if not meaningful_cat_cols:
-                        meaningful_cat_cols = sorted(
-                            categorical_cols,
-                            key=lambda col: cat_cardinality[col]
-                        )
-                    
-                    # Take top 2 by cardinality
-                    cat_cols_to_analyze = sorted(
-                        meaningful_cat_cols,
-                        key=lambda col: cat_cardinality[col],
-                        reverse=True
-                    )[:2]
-                    
-                    # Numeric columns: select high-variance ones
-                    num_cols_to_analyze = sorted(
-                        numeric_cols,
-                        key=lambda col: df[col].var(),
-                        reverse=True
-                    )[:2]
-                    
-                    logger.info(f"Analyzing categorical cols: {cat_cols_to_analyze}")
 
-                    for cat_col in cat_cols_to_analyze:
-                        for num_col in num_cols_to_analyze:
-                            # Group means
-                            group_means = df.groupby(cat_col)[num_col].mean().to_dict()
+        # ========== 2. CATEGORICAL-to-NUMERIC RELATIONSHIPS ==========
+        if categorical_cols and numeric_cols:
+            try:
+                cat_numeric_rels = {}
 
-                            # F-statistic (effect size)
-                            groups = [group[num_col].values for _, group in df.groupby(cat_col)]
-                            # Filter out groups with 1 sample (needed for meaningful ANOVA)
-                            valid_groups = [g for g in groups if len(g) > 1]
-                            try:
-                                if len(valid_groups) >= 2:
-                                    f_stat, p_value = f_oneway(*valid_groups)
-                                    effect_strength = "strong" if f_stat > 10 else "moderate" if f_stat > 3 else "weak"
-                                else:
-                                    f_stat, p_value, effect_strength = None, None, "unknown"
-                            except Exception:
+                # Select MEANINGFUL categorical columns (3-50 cardinality sweet spot)
+                cat_cardinality = {col: df[col].nunique() for col in categorical_cols}
+
+                # Sweet spot: 3-50 unique values
+                meaningful_cat_cols = [
+                    col for col, card in cat_cardinality.items()
+                    if 3 <= card <= 50
+                ]
+
+                # Fallback if none in sweet spot
+                if not meaningful_cat_cols:
+                    meaningful_cat_cols = sorted(
+                        categorical_cols,
+                        key=lambda col: cat_cardinality[col]
+                    )
+
+                # Take top 2 by cardinality
+                cat_cols_to_analyze = sorted(
+                    meaningful_cat_cols,
+                    key=lambda col: cat_cardinality[col],
+                    reverse=True
+                )[:2]
+
+                # Numeric columns: select high-variance ones
+                num_cols_to_analyze = sorted(
+                    numeric_cols,
+                    key=lambda col: df[col].var(),
+                    reverse=True
+                )[:2]
+
+                logger.info(f"Analyzing categorical cols: {cat_cols_to_analyze}")
+
+                for cat_col in cat_cols_to_analyze:
+                    for num_col in num_cols_to_analyze:
+                        # Group means
+                        group_means = df.groupby(cat_col)[num_col].mean().to_dict()
+
+                        # F-statistic (effect size)
+                        groups = [group[num_col].values for _, group in df.groupby(cat_col)]
+                        # Filter out groups with 1 sample (needed for meaningful ANOVA)
+                        valid_groups = [g for g in groups if len(g) > 1]
+                        try:
+                            if len(valid_groups) >= 2:
+                                f_stat, p_value = f_oneway(*valid_groups)
+                                effect_strength = "strong" if f_stat > 10 else "moderate" if f_stat > 3 else "weak"
+                            else:
                                 f_stat, p_value, effect_strength = None, None, "unknown"
+                        except Exception:
+                            f_stat, p_value, effect_strength = None, None, "unknown"
 
-                            cat_numeric_rels[f"{cat_col}_by_{num_col}"] = {
-                                "group_means": {k: float(v) for k, v in group_means.items()},
-                                "f_statistic": float(f_stat) if f_stat else None,
-                                "p_value": float(p_value) if p_value else None,
-                                "effect_strength": effect_strength
-                            }
+                        cat_numeric_rels[f"{cat_col}_by_{num_col}"] = {
+                            "group_means": {k: float(v) for k, v in group_means.items()},
+                            "f_statistic": float(f_stat) if f_stat else None,
+                            "p_value": float(p_value) if p_value else None,
+                            "effect_strength": effect_strength
+                        }
 
-                    relationships["categorical_numeric_groups"] = cat_numeric_rels
-                    logger.info(f"Analyzed {len(cat_numeric_rels)} categorical-numeric relationships")
-                except Exception as e:
-                    logger.warning(f"Failed to compute categorical-numeric relationships: {e}")
+                relationships["categorical_numeric_groups"] = cat_numeric_rels
+                logger.info(f"Analyzed {len(cat_numeric_rels)} categorical-numeric relationships")
+            except Exception as e:
+                logger.warning(f"Failed to compute categorical-numeric relationships: {e}")
         
         # ========== 3. CATEGORICAL-to-CATEGORICAL RELATIONSHIPS ==========
         # CRITICAL: Filter out ID-like columns (high cardinality) before cross-tabulation
@@ -664,7 +673,7 @@ def make_eda_baseline_workflow(
         step_results = results.get(current_step, {})
         
         class ObservationOutput(BaseModel):
-            observations: list[str] = Field(description="1-2 concise, actionable observations")
+            observations: list[str] = Field(description="3-6 concise, actionable observations")
         
         observation_prompt = ChatPromptTemplate.from_messages([
             ("system", load_prompt("extract_observations_system.txt")),
