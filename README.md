@@ -22,8 +22,8 @@ The workflow executes these nodes in order:
 | `detect_schema` | Classifies columns: numeric, categorical, date, ID (>80% unique), or text (avg length >50). All downstream nodes use this schema to skip irrelevant columns. |
 | `profile_dataset` | Shape, dtypes, `describe()` statistics for numeric columns, and top-10 value counts for categorical columns. |
 | `validate_data_integrity` | Checks `total = quantity × price` relationships, flags negative values in quantity/count columns. Severity rated HIGH/MEDIUM. |
-| `extract_observations` ×5 | LLM step: extracts 1–2 concise observations from each preceding analysis result. |
-| `analyze_missingness` | Per-column null counts and percentages; flags columns with >20% missing. |
+| `extract_observations` ×6 | LLM step: extracts 3–6 concise observations from each preceding analysis result. |
+| `analyze_missingness` | Per-column null counts and percentages; flags columns with >20% missing. Also counts sentinel strings (`""`, `"N/A"`, `"null"`, `"-"`, etc.) in object-dtype columns, reported separately as `sentinel_value_counts`. |
 | `detect_temporal_anomalies` | If date columns exist: groups by date, computes daily sums, and flags values more than 1 std dev above the mean as peaks. |
 | `compute_aggregates` | Group-by aggregations (sum/mean/count). Selects categorical columns with 3–50 unique values and numeric columns by highest variance. |
 | `analyze_relationships` | Three relationship types: (1) numeric–numeric Pearson correlation (threshold 0.7), (2) categorical–numeric ANOVA F-statistic, (3) categorical–categorical cross-tabulation. ID-like columns are excluded from cross-tabs. |
