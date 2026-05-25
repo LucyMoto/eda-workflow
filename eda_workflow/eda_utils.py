@@ -58,7 +58,13 @@ def detect_column_schema(df: pd.DataFrame) -> dict:
             schema['numeric_columns'].append(col)
             logger.debug(f"Classified '{col}' as numeric column")
             continue
-        
+
+        # ========== DATETIME COLUMNS (already parsed by upstream step) ==========
+        if pd.api.types.is_datetime64_any_dtype(dtype):
+            schema['date_columns'].append(col)
+            logger.debug(f"Classified '{col}' as date column (datetime64 dtype)")
+            continue
+
         # ========== DATE COLUMNS (check BEFORE ID/text) ==========
         # Only if string type AND contains date-like patterns
         if is_string_like:
